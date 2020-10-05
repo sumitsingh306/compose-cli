@@ -57,7 +57,7 @@ var (
 	binDir string
 
 	location = []string{"westcentralus", "westus2", "northeurope", "southeastasia", "eastus2", "centralus", "australiaeast", "southcentralus",
-		"centralindia", "brazilsouth", "southindia", "northcentralus", "eastasia", "canadacentral", "japaneast", "koreacentral"}
+		"centralindia", "brazilsouth", "southindia", "eastasia", "canadacentral", "koreacentral"}
 )
 
 func TestMain(m *testing.M) {
