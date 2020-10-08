@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -34,7 +35,6 @@ type createSecretOptions struct {
 	Username    string
 	Password    string
 	Description string
-	ReadStdin   bool
 }
 
 // SecretCommand manage secrets
@@ -56,26 +56,36 @@ func SecretCommand() *cobra.Command {
 func createSecret() *cobra.Command {
 	opts := createSecretOptions{}
 	cmd := &cobra.Command{
-		Use:   "create NAME",
+		Use:   "create NAME [PASSWORD-FILE]",
 		Short: "Creates a secret.",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client.New(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if len(opts.Password) > 0 && opts.ReadStdin {
-				return errors.New(`password set with both --password and --password-stdin argument. Only one at a time is accepted`)
+			if len(opts.Password) > 0 && len(args) == 2 {
+				return errors.New("password set with both --password and positional argument. Only one at a time is accepted")
 			}
 			password := opts.Password
-			if opts.ReadStdin {
-				_, err := fmt.Scanf("%s", &password)
-				if err != nil {
-					return err
+
+			if len(args[1]) > 0 {
+				switch args[1] {
+				case "-":
+					_, err := fmt.Scanf("%s", &password)
+					if err != nil {
+						return err
+					}
+				default:
+					p, err := ioutil.ReadFile(args[1])
+					if err != nil {
+						return err
+					}
+					password = string(p)
 				}
 			}
 			if len(password) == 0 {
-				return errors.New(`password cannot be empty`)
+				return errors.New("password cannot be empty")
 			}
 			name := args[0]
 			secret := secrets.NewSecret(name, opts.Username, password, opts.Description)
@@ -90,7 +100,6 @@ func createSecret() *cobra.Command {
 
 	cmd.Flags().StringVarP(&opts.Username, "username", "u", "", "username")
 	cmd.Flags().StringVarP(&opts.Password, "password", "p", "", "password")
-	cmd.Flags().BoolVar(&opts.ReadStdin, "password-stdin", false, "Read password from STDIN")
 	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "Secret description")
 	return cmd
 }
