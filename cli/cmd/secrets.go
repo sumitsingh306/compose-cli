@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +34,7 @@ type createSecretOptions struct {
 	Username    string
 	Password    string
 	Description string
+	ReadStdin   bool
 }
 
 // SecretCommand manage secrets
@@ -62,8 +64,21 @@ func createSecret() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(opts.Password) > 0 && opts.ReadStdin {
+				return errors.New(`password set with both --password and --password-stdin argument. Only one at a time is accepted`)
+			}
+			password := opts.Password
+			if opts.ReadStdin {
+				_, err := fmt.Scanf("%s", &password)
+				if err != nil {
+					return err
+				}
+			}
+			if len(password) == 0 {
+				return errors.New(`password cannot be empty`)
+			}
 			name := args[0]
-			secret := secrets.NewSecret(name, opts.Username, opts.Password, opts.Description)
+			secret := secrets.NewSecret(name, opts.Username, password, opts.Description)
 			id, err := c.SecretsService().CreateSecret(cmd.Context(), secret)
 			if err != nil {
 				return err
@@ -75,6 +90,7 @@ func createSecret() *cobra.Command {
 
 	cmd.Flags().StringVarP(&opts.Username, "username", "u", "", "username")
 	cmd.Flags().StringVarP(&opts.Password, "password", "p", "", "password")
+	cmd.Flags().BoolVar(&opts.ReadStdin, "password-stdin", false, "Read password from STDIN")
 	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "Secret description")
 	return cmd
 }
