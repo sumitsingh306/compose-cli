@@ -39,7 +39,8 @@ func marshall(template *cloudformation.Template) ([]byte, error) {
 		if resources, ok := input["Resources"]; ok {
 			for _, uresource := range resources.(map[string]interface{}) {
 				if resource, ok := uresource.(map[string]interface{}); ok {
-					if resource["Type"] == "AWS::ECS::TaskDefinition" {
+					switch resource["Type"] {
+					case "AWS::ECS::TaskDefinition":
 						properties := resource["Properties"].(map[string]interface{})
 						for _, def := range properties["ContainerDefinitions"].([]interface{}) {
 							containerDefinition := def.(map[string]interface{})
@@ -47,6 +48,9 @@ func marshall(template *cloudformation.Template) ([]byte, error) {
 								containerDefinition["Essential"] = "false"
 							}
 						}
+					case "AWS::ElasticLoadBalancingV2::TargetGroup":
+						properties := resource["Properties"].(map[string]interface{})
+						properties["HealthCheckEnabled"] = "false"
 					}
 				}
 			}

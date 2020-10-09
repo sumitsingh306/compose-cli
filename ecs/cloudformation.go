@@ -19,9 +19,12 @@ package ecs
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"regexp"
 	"strings"
+
+	"github.com/docker/compose-cli/api/compose"
 
 	ecsapi "github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
@@ -48,20 +51,30 @@ func (b *ecsAPIService) Convert(ctx context.Context, project *types.Project) ([]
 		return nil, err
 	}
 
-	template, err := b.convert(project, resources)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a NFS inbound rule on each mount target for volumes
-	// as "source security group" use an arbitrary network attached to service(s) who mounts target volume
-	for n, vol := range project.Volumes {
-		err := b.SDK.WithVolumeSecurityGroups(ctx, vol.Name, func(securityGroups []string) error {
-			return b.createNFSmountIngress(securityGroups, project, n, template)
-		})
+	for name := range project.Volumes {
+		logrus.Debugf("searching for existing filesystem as volume %q", name)
+		tags := map[string]string{
+			compose.ProjectTag: project.Name,
+			compose.VolumeTag:  name,
+		}
+		id, err := b.SDK.FindFileSystem(ctx, tags)
 		if err != nil {
 			return nil, err
 		}
+		if id == "" {
+			logrus.Debug("no EFS filesystem found, create a fresh new one")
+			id, err = b.SDK.CreateFileSystem(ctx, tags)
+			if err != nil {
+				return nil, err
+			}
+		}
+		logrus.Debugf("attaching filesystem %q as volume %q", id, name)
+		resources.filesystems[name] = id
+	}
+
+	template, err := b.convert(project, resources)
+	if err != nil {
+		return nil, err
 	}
 
 	err = b.createCapacityProvider(ctx, project, template, resources)
@@ -86,6 +99,8 @@ func (b *ecsAPIService) convert(project *types.Project, resources awsResources) 
 
 	b.createLogGroup(project, template)
 
+	b.createNFSMountTarget(project, resources, template)
+
 	// Private DNS namespace will allow DNS name for the services to be <service>.<project>.local
 	b.createCloudMap(project, template, resources.vpc)
 
@@ -93,7 +108,7 @@ func (b *ecsAPIService) convert(project *types.Project, resources awsResources) 
 		taskExecutionRole := b.createTaskExecutionRole(project, service, template)
 		taskRole := b.createTaskRole(project, service, template)
 
-		definition, err := b.createTaskDefinition(project, service)
+		definition, err := b.createTaskDefinition(project, resources, service)
 		if err != nil {
 			return nil, err
 		}
@@ -139,6 +154,10 @@ func (b *ecsAPIService) convert(project *types.Project, resources awsResources) 
 
 		for dependency := range service.DependsOn {
 			dependsOn = append(dependsOn, serviceResourceName(dependency))
+		}
+
+		for _, s := range service.Volumes {
+			dependsOn = append(dependsOn, b.mountTargets(s.Source, resources)...)
 		}
 
 		minPercent, maxPercent, err := computeRollingUpdateLimits(service)
@@ -318,7 +337,7 @@ func (b *ecsAPIService) createTargetGroup(project *types.Project, service types.
 		port.Published,
 	)
 	template.Resources[targetGroupName] = &elasticloadbalancingv2.TargetGroup{
-		HealthCheckEnabled: false,
+		HealthCheckEnabled: false, // ignored by goformation, see ecs/marshall.go:51
 		Port:               int(port.Target),
 		Protocol:           protocol,
 		Tags:               projectTags(project),
@@ -437,6 +456,10 @@ func networkResourceName(network string) string {
 
 func serviceResourceName(service string) string {
 	return fmt.Sprintf("%sService", normalizeResourceName(service))
+}
+
+func volumeResourceName(volume string) string {
+	return fmt.Sprintf("%sVolume", normalizeResourceName(volume))
 }
 
 func normalizeResourceName(s string) string {
