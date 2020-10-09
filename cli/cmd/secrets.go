@@ -33,7 +33,6 @@ import (
 
 type createSecretOptions struct {
 	Label       string
-	Username    string
 	Description string
 }
 
@@ -64,11 +63,11 @@ func createSecret() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			password := ""
+			content := ""
 			switch args[1] {
 			case "-":
 				p := prompt.User{}
-				password, err = p.Password("")
+				content, err = p.Password("")
 				if err != nil {
 					return err
 				}
@@ -77,14 +76,14 @@ func createSecret() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				password = string(p)
+				content = string(p)
 			}
 
-			if len(password) == 0 {
+			if len(content) == 0 {
 				return errors.New("secret cannot be empty")
 			}
 			name := args[0]
-			secret := secrets.NewSecret(name, opts.Username, password, opts.Description)
+			secret := secrets.NewSecret(name, content, opts.Description)
 			id, err := c.SecretsService().CreateSecret(cmd.Context(), secret)
 			if err != nil {
 				return err
@@ -94,7 +93,6 @@ func createSecret() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.Username, "username", "u", "", "username")
 	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "Secret description")
 	return cmd
 }

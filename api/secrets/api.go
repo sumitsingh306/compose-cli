@@ -35,16 +35,14 @@ type Secret struct {
 	Name        string            `json:"Name"`
 	Labels      map[string]string `json:"Labels"`
 	Description string            `json:"Description"`
-	username    string
-	password    string
+	content     string
 }
 
 // NewSecret builds a secret
-func NewSecret(name, username, password, description string) Secret {
+func NewSecret(name, password, description string) Secret {
 	return Secret{
 		Name:        name,
-		username:    username,
-		password:    password,
+		content:     password,
 		Description: description,
 	}
 }
@@ -58,15 +56,7 @@ func (s Secret) ToJSON() (string, error) {
 	return string(b), nil
 }
 
-// GetCredString marshall a Secret's sensitive data into JSON string
-func (s Secret) GetCredString() (string, error) {
-	creds := map[string]string{
-		"username": s.username,
-		"password": s.password,
-	}
-	b, err := json.Marshal(&creds)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+// GetContent returns a Secret's sensitive data
+func (s Secret) GetContent() string {
+	return s.content
 }
