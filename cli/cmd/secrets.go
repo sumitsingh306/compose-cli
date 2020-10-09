@@ -28,12 +28,12 @@ import (
 	"github.com/docker/compose-cli/api/client"
 	"github.com/docker/compose-cli/api/secrets"
 	"github.com/docker/compose-cli/formatter"
+	"github.com/docker/compose-cli/prompt"
 )
 
 type createSecretOptions struct {
 	Label       string
 	Username    string
-	Password    string
 	Description string
 }
 
@@ -56,36 +56,32 @@ func SecretCommand() *cobra.Command {
 func createSecret() *cobra.Command {
 	opts := createSecretOptions{}
 	cmd := &cobra.Command{
-		Use:   "create NAME [PASSWORD-FILE]",
+		Use:   "create [OPTIONS] SECRET [file|-]",
 		Short: "Creates a secret.",
-		Args:  cobra.RangeArgs(1, 2),
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client.New(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if len(opts.Password) > 0 && len(args) == 2 {
-				return errors.New("password set with both --password and positional argument. Only one at a time is accepted")
-			}
-			password := opts.Password
-
-			if len(args[1]) > 0 {
-				switch args[1] {
-				case "-":
-					_, err := fmt.Scanf("%s", &password)
-					if err != nil {
-						return err
-					}
-				default:
-					p, err := ioutil.ReadFile(args[1])
-					if err != nil {
-						return err
-					}
-					password = string(p)
+			password := ""
+			switch args[1] {
+			case "-":
+				p := prompt.User{}
+				password, err = p.Password("")
+				if err != nil {
+					return err
 				}
+			default:
+				p, err := ioutil.ReadFile(args[1])
+				if err != nil {
+					return err
+				}
+				password = string(p)
 			}
+
 			if len(password) == 0 {
-				return errors.New("password cannot be empty")
+				return errors.New("secret cannot be empty")
 			}
 			name := args[0]
 			secret := secrets.NewSecret(name, opts.Username, password, opts.Description)
@@ -99,7 +95,6 @@ func createSecret() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&opts.Username, "username", "u", "", "username")
-	cmd.Flags().StringVarP(&opts.Password, "password", "p", "", "password")
 	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "Secret description")
 	return cmd
 }
