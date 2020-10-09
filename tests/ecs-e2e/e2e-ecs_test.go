@@ -53,7 +53,7 @@ func TestSecrets(t *testing.T) {
 	description := "description " + testID
 
 	t.Run("create secret", func(t *testing.T) {
-		res := cmd.RunDockerCmd("secret", "create", secretName, "-u", "user1", "-d", description)
+		res := cmd.RunDockerCmd("secret", "create", "-u", "user1", "-d", description, secretName, "-")
 		stdin, err := res.Cmd.StdinPipe()
 		assert.NilError(t, err)
 		fmt.Fprint(stdin, "pass1")
