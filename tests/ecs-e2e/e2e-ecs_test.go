@@ -58,6 +58,7 @@ func TestSecrets(t *testing.T) {
 		stdin, err := res.Cmd.StdinPipe()
 		assert.NilError(t, err)
 		fmt.Fprintln(stdin, "pass1")
+		assert.NilError(t, stdin.Close())
 		assert.NilError(t, res.Cmd.Wait())
 		assert.Check(t, strings.Contains(res.Stdout(), "secret:"+secretName))
 	})

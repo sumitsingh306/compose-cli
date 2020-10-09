@@ -35,14 +35,14 @@ type Secret struct {
 	Name        string            `json:"Name"`
 	Labels      map[string]string `json:"Labels"`
 	Description string            `json:"Description"`
-	content     string
+	content     []byte
 }
 
 // NewSecret builds a secret
-func NewSecret(name, password, description string) Secret {
+func NewSecret(name string, content []byte, description string) Secret {
 	return Secret{
 		Name:        name,
-		content:     password,
+		content:     content,
 		Description: description,
 	}
 }
@@ -57,6 +57,6 @@ func (s Secret) ToJSON() (string, error) {
 }
 
 // GetContent returns a Secret's sensitive data
-func (s Secret) GetContent() string {
+func (s Secret) GetContent() []byte {
 	return s.content
 }

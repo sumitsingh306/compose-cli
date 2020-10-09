@@ -17,7 +17,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,7 +27,7 @@ import (
 	"github.com/docker/compose-cli/api/client"
 	"github.com/docker/compose-cli/api/secrets"
 	"github.com/docker/compose-cli/formatter"
-	"github.com/docker/compose-cli/prompt"
+	"github.com/docker/docker/pkg/system"
 )
 
 type createSecretOptions struct {
@@ -63,25 +62,27 @@ func createSecret() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			content := ""
-			switch args[1] {
+			file := args[1]
+			if len(file) == 0 {
+				return fmt.Errorf("Secret data source empty: %q", file)
+			}
+			var in io.ReadCloser
+			switch file {
 			case "-":
-				p := prompt.User{}
-				content, err = p.Password("")
-				if err != nil {
-					return err
-				}
+				in = os.Stdin
 			default:
-				p, err := ioutil.ReadFile(args[1])
+				in, err = system.OpenSequential(file)
 				if err != nil {
 					return err
 				}
-				content = string(p)
+				defer in.Close()
+
+			}
+			content, err := ioutil.ReadAll(in)
+			if err != nil {
+				return fmt.Errorf("Error reading content from %q: %v", file, err)
 			}
 
-			if len(content) == 0 {
-				return errors.New("secret cannot be empty")
-			}
 			name := args[0]
 			secret := secrets.NewSecret(name, content, opts.Description)
 			id, err := c.SecretsService().CreateSecret(cmd.Context(), secret)

@@ -524,11 +524,10 @@ func (s sdk) DeleteStack(ctx context.Context, name string) error {
 
 func (s sdk) CreateSecret(ctx context.Context, secret secrets.Secret) (string, error) {
 	logrus.Debug("Create secret " + secret.Name)
-	secretString := secret.GetContent()
 	response, err := s.SM.CreateSecret(&secretsmanager.CreateSecretInput{
 
 		Name:         &secret.Name,
-		SecretString: &secretString,
+		SecretBinary: secret.GetContent(),
 		Description:  &secret.Description,
 	})
 	if err != nil {
