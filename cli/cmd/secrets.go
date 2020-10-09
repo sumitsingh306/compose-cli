@@ -56,13 +56,16 @@ func createSecret() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create [OPTIONS] SECRET [file|-]",
 		Short: "Creates a secret.",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client.New(cmd.Context())
 			if err != nil {
 				return err
 			}
-			file := args[1]
+			file := "-"
+			if len(args) == 2 {
+				file = args[1]
+			}
 			if len(file) == 0 {
 				return fmt.Errorf("Secret data source empty: %q", file)
 			}
@@ -76,13 +79,11 @@ func createSecret() *cobra.Command {
 					return err
 				}
 				defer in.Close()
-
 			}
 			content, err := ioutil.ReadAll(in)
 			if err != nil {
 				return fmt.Errorf("Error reading content from %q: %v", file, err)
 			}
-
 			name := args[0]
 			secret := secrets.NewSecret(name, content, opts.Description)
 			id, err := c.SecretsService().CreateSecret(cmd.Context(), secret)
